@@ -1,0 +1,36 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Un groupe est lisible si on connaît son id ou son code (requête where code ==).
+    // Sans système de comptes, la confidentialité repose sur le secret du code :
+    // ne partage le code/lien qu'avec les personnes concernées.
+    match /groups/{groupId} {
+      allow read: if true;
+      allow create: if request.resource.data.name is string
+                    && request.resource.data.name.size() >= 2
+                    && request.resource.data.name.size() <= 40
+                    && request.resource.data.code is string
+                    && request.resource.data.code.size() == 6;
+      allow update, delete: if false;
+
+      match /members/{memberId} {
+        allow read: if true;
+        allow create, update: if request.resource.data.pseudo is string
+                              && request.resource.data.pseudo.size() >= 2
+                              && request.resource.data.pseudo.size() <= 24;
+        allow delete: if false;
+      }
+
+      match /items/{itemId} {
+        allow read: if true;
+        allow create: if request.resource.data.name is string
+                      && request.resource.data.name.size() >= 2
+                      && request.resource.data.name.size() <= 80;
+        // Mise à jour : édition par le propriétaire OU changement de réservation seul
+        allow update: if true;
+        allow delete: if true;
+      }
+    }
+  }
+}
