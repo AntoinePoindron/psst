@@ -9,7 +9,9 @@ sauf par la personne concernée. Fini les doublons, et la surprise est préserv�
 
 - **Groupes** : crée un groupe (« Famille », « Anniversaire Antoine »…) et
   invite tes proches avec un **code à 6 caractères** ou un **lien d'invitation**.
-- **Sans compte** : un simple prénom suffit, stocké sur l'appareil.
+- **Compte simple** : nom d'utilisateur + mot de passe pour retrouver ses
+  listes sur tous ses appareils. Le mot de passe est haché côté client
+  (PBKDF2 + sel) et n'est jamais stocké en clair.
 - **Idées de cadeaux** : nom, prix approximatif, lien d'achat, petite note et
   photo (compressée automatiquement côté navigateur).
 - **Réservation secrète** : « Je l'offre 🎁 » marque le cadeau comme pris pour
@@ -58,6 +60,8 @@ Le build est 100 % statique, donc n'importe quel hébergeur convient.
 ## Modèle de données
 
 ```
+accounts/{username}
+  pseudo, profileId, salt, passwordHash, groupIds, createdAt
 groups/{groupId}
   name, code, createdBy, createdAt
   members/{userId}
@@ -71,18 +75,20 @@ Les photos sont compressées côté client (JPEG, ~720 px max) et stockées en
 base64 directement dans le document Firestore, ce qui évite d'activer Firebase
 Storage (payant pour les nouveaux projets).
 
-## À savoir (limites du « sans compte »)
+## À savoir (sécurité)
 
-- L'identité repose sur le navigateur (localStorage). Si on vide les données du
-  navigateur ou qu'on change d'appareil, on repart avec une nouvelle identité —
-  les listes restent dans le groupe, mais on ne peut plus modifier ses anciens
-  articles. Pour un usage famille, c'est généralement un compromis acceptable.
+- L'identité repose sur un compte (nom d'utilisateur + mot de passe). On
+  retrouve donc ses listes en se reconnectant depuis n'importe quel appareil.
+- L'authentification est volontairement **simple** : le mot de passe est haché
+  côté client (PBKDF2 + sel) et comparé au hash stocké dans Firestore. Il n'y a
+  pas de vérification serveur — adapté à un usage entre proches, pas à des
+  données sensibles.
 - La confidentialité d'un groupe repose sur le secret de son code. Ne partage
   le code qu'avec les personnes concernées.
-- Si tu veux plus tard une vraie sécurité (modification réservée au
-  propriétaire vérifié, multi-appareils), la piste naturelle est **Firebase
-  Anonymous Auth** + règles Firestore basées sur `request.auth.uid` — la
-  structure du code est déjà prête pour ça (`profile.id` deviendrait l'uid).
+- Pour une vraie sécurité (vérification serveur, droits par utilisateur), la
+  piste naturelle est **Firebase Authentication** + règles Firestore basées sur
+  `request.auth.uid` — la structure du code est déjà prête (`profile.id`
+  deviendrait l'uid).
 
 ## Scripts
 

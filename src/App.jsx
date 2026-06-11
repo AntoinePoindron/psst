@@ -4,7 +4,15 @@ import HomePage from './pages/HomePage'
 import GroupPage from './pages/GroupPage'
 import JoinPage from './pages/JoinPage'
 import PseudoModal from './components/PseudoModal'
-import { getProfile, saveProfile } from './lib/profile'
+import AuthGate from './components/AuthGate'
+import {
+  clearSession,
+  getProfile,
+  saveProfile,
+  setJoinedGroupIds,
+  setProfile as storeProfile,
+} from './lib/profile'
+import { setAccountPseudo } from './lib/db'
 
 const ProfileContext = createContext(null)
 export const useProfile = () => useContext(ProfileContext)
@@ -13,28 +21,32 @@ export default function App() {
   const [profile, setProfile] = useState(getProfile)
   const [editingPseudo, setEditingPseudo] = useState(false)
 
-  const updatePseudo = (pseudo) => {
-    setProfile(saveProfile(pseudo))
-    setEditingPseudo(false)
+  // Inscription ou connexion réussie : on installe la session localement.
+  const handleAuthenticated = ({ profile, groupIds }) => {
+    storeProfile(profile)
+    setJoinedGroupIds(groupIds)
+    setProfile(profile)
   }
 
-  // Premier passage : on demande juste un prénom, rien d'autre.
+  const updatePseudo = (pseudo) => {
+    const next = saveProfile(pseudo)
+    setProfile(next)
+    setEditingPseudo(false)
+    if (next.username) {
+      setAccountPseudo(next.username, next.pseudo).catch(() => {
+        /* synchro best-effort : le pseudo local reste à jour */
+      })
+    }
+  }
+
+  const logout = () => {
+    clearSession()
+    setProfile(null)
+  }
+
+  // Première visite : créer un compte ou se reconnecter.
   if (!profile) {
-    return (
-      <div className="shell">
-        <div className="onboard">
-          <div className="wave" aria-hidden="true">
-            👋
-          </div>
-          <h1>Bienvenue sur Psst&nbsp;!</h1>
-          <p>
-            Ici, chacun note ses envies de cadeaux, et les autres s'organisent en
-            secret. Comment tes proches t'appellent-ils&nbsp;?
-          </p>
-          <PseudoForm onSubmit={updatePseudo} />
-        </div>
-      </div>
-    )
+    return <AuthGate onAuthenticated={handleAuthenticated} />
   }
 
   return (
@@ -44,13 +56,18 @@ export default function App() {
           <Link to="/" className="brand">
             Psst<em>&nbsp;!</em>
           </Link>
-          <button
-            className="whoami"
-            onClick={() => setEditingPseudo(true)}
-            title="Changer mon prénom"
-          >
-            <span aria-hidden="true">🙂</span> {profile.pseudo}
-          </button>
+          <div className="topbar-actions">
+            <button
+              className="whoami"
+              onClick={() => setEditingPseudo(true)}
+              title="Changer mon prénom"
+            >
+              <span aria-hidden="true">🙂</span> {profile.pseudo}
+            </button>
+            <button className="btn-ghost btn-small" onClick={logout} title="Se déconnecter">
+              Déconnexion
+            </button>
+          </div>
         </header>
 
         <Routes>
@@ -68,39 +85,5 @@ export default function App() {
         />
       )}
     </ProfileContext.Provider>
-  )
-}
-
-function PseudoForm({ onSubmit }) {
-  const [value, setValue] = useState('')
-
-  const submit = () => {
-    if (value.trim().length >= 2) onSubmit(value)
-  }
-
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault()
-        submit()
-      }}
-    >
-      <div className="field">
-        <label htmlFor="pseudo">Mon prénom ou surnom</label>
-        <input
-          id="pseudo"
-          className="input"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder="Antoine, Mamie Jo, Tonton…"
-          maxLength={24}
-          autoFocus
-        />
-        <p className="hint">Pas de compte, pas de mot de passe. C'est tout.</p>
-      </div>
-      <button type="submit" className="btn btn-primary" disabled={value.trim().length < 2} style={{ width: '100%' }}>
-        C'est parti 🎁
-      </button>
-    </form>
   )
 }

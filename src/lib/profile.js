@@ -1,14 +1,8 @@
+import { setAccountGroups } from './db'
+import { uuid } from './utils'
+
 const PROFILE_KEY = 'psst-profile'
 const GROUPS_KEY = 'psst-groups'
-
-function uuid() {
-  if (crypto.randomUUID) return crypto.randomUUID()
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0
-    const v = c === 'x' ? r : (r & 0x3) | 0x8
-    return v.toString(16)
-  })
-}
 
 export function getProfile() {
   try {
@@ -20,11 +14,23 @@ export function getProfile() {
   return null
 }
 
-export function saveProfile(pseudo) {
-  const existing = getProfile()
-  const profile = { id: existing?.id || uuid(), pseudo: pseudo.trim() }
+/** Écrit le profil complet (utilisé après inscription / connexion). */
+export function setProfile(profile) {
   localStorage.setItem(PROFILE_KEY, JSON.stringify(profile))
   return profile
+}
+
+export function saveProfile(pseudo) {
+  const existing = getProfile()
+  const profile = { ...(existing || {}), id: existing?.id || uuid(), pseudo: pseudo.trim() }
+  localStorage.setItem(PROFILE_KEY, JSON.stringify(profile))
+  return profile
+}
+
+/** Déconnexion : on oublie le profil et les groupes de cet appareil. */
+export function clearSession() {
+  localStorage.removeItem(PROFILE_KEY)
+  localStorage.removeItem(GROUPS_KEY)
 }
 
 export function getJoinedGroupIds() {
@@ -37,15 +43,32 @@ export function getJoinedGroupIds() {
   return []
 }
 
+/** Remplace la liste locale (utilisé pour restaurer la session à la connexion). */
+export function setJoinedGroupIds(ids) {
+  localStorage.setItem(GROUPS_KEY, JSON.stringify(ids))
+}
+
 export function rememberGroup(groupId) {
   const ids = getJoinedGroupIds()
   if (!ids.includes(groupId)) {
     ids.push(groupId)
     localStorage.setItem(GROUPS_KEY, JSON.stringify(ids))
+    syncGroups(ids)
   }
 }
 
 export function forgetGroup(groupId) {
   const ids = getJoinedGroupIds().filter((id) => id !== groupId)
   localStorage.setItem(GROUPS_KEY, JSON.stringify(ids))
+  syncGroups(ids)
+}
+
+/** Pousse la liste des groupes vers le compte cloud (best-effort). */
+function syncGroups(ids) {
+  const profile = getProfile()
+  if (profile?.username) {
+    setAccountGroups(profile.username, ids).catch(() => {
+      /* hors-ligne : la liste locale reste la référence */
+    })
+  }
 }

@@ -16,6 +16,29 @@ import {
 import { db } from './firebase'
 import { generateGroupCode } from './utils'
 
+/* ---------- Comptes ---------- */
+
+export async function getAccount(username) {
+  const snap = await getDoc(doc(db, 'accounts', username))
+  if (!snap.exists()) return null
+  return { id: snap.id, ...snap.data() }
+}
+
+export async function createAccount(username, data) {
+  await setDoc(doc(db, 'accounts', username), {
+    ...data,
+    createdAt: serverTimestamp(),
+  })
+}
+
+export async function setAccountGroups(username, groupIds) {
+  await setDoc(doc(db, 'accounts', username), { groupIds }, { merge: true })
+}
+
+export async function setAccountPseudo(username, pseudo) {
+  await setDoc(doc(db, 'accounts', username), { pseudo: pseudo.trim() }, { merge: true })
+}
+
 /* ---------- Groupes ---------- */
 
 export async function createGroup(name, profile) {

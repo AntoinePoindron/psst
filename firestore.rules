@@ -2,6 +2,30 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Comptes : inscription / connexion par nom d'utilisateur + mot de passe.
+    // Le mot de passe n'est jamais stocké en clair (hash PBKDF2 + sel côté client).
+    // La lecture est ouverte car la connexion compare le hash côté client ; c'est
+    // la limite d'une auth « simple » sans Firebase Authentication.
+    match /accounts/{username} {
+      allow read: if true;
+
+      // Création : seulement si le compte n'existe pas encore, avec les champs requis.
+      allow create: if request.resource.data.profileId is string
+                    && request.resource.data.passwordHash is string
+                    && request.resource.data.salt is string
+                    && request.resource.data.pseudo is string
+                    && request.resource.data.pseudo.size() >= 2
+                    && request.resource.data.pseudo.size() <= 24;
+
+      // Mise à jour : on ne peut toucher QUE le pseudo et la liste de groupes.
+      // Le mot de passe, le sel et l'identité (profileId) restent figés : pas de
+      // prise de contrôle d'un compte existant en écrasant son hash.
+      allow update: if request.resource.data.diff(resource.data)
+                       .affectedKeys().hasOnly(['pseudo', 'groupIds']);
+
+      allow delete: if false;
+    }
+
     // Un groupe est lisible si on connaît son id ou son code (requête where code ==).
     // Sans système de comptes, la confidentialité repose sur le secret du code :
     // ne partage le code/lien qu'avec les personnes concernées.
